@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>4-Year Course Planner</title>
+
+  <!-- External Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: hsl(0, 0%, 90%);
+      --bg: hsl(0, 0%, 95%);
+      --bg-light: hsl(0, 0%, 100%);
+      --bg-card: hsl(0, 0%, 100%);
+      --bg-course-default: hsl(0, 0%, 99%);
+      --bg-course-completed: hsl(120, 48%, 78%);
+      --bg-course-onprocess: hsl(197, 53%, 79%);
+      --bg-editable-focus: hsl(47, 100%, 95.3%);
+      --text: hsl(0, 0%, 5%);
+      --text-muted: hsl(0, 0%, 30%);
+      --text-link-green: hsl(120, 100%, 25%);
+      --text-link-blue: hsl(240, 100%, 50%);
+      --border-color-main: hsl(0, 0%, 88.2%);
+      --border-color-completed: hsl(120, 48%, 78%);
+      --border-color-onprocess: hsl(197, 53%, 79%);
+      --border-color-editable-focus: hsl(0, 0%, 0%);
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      color: var(--text);
+      margin: 20px;
+      background: var(--bg-dark);
+    }
+
+    h1, h2, h3 {
+      text-align: center;
+    }
+
+    #header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 80px auto 40px auto;
+      gap: 24px;
+      text-align: center;
+    }
+
+    .tree {
+      display: flex;
+      flex-direction: row;
+      gap: 30px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .year-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background-color: var(--bg);
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    .year-title {
+      text-align: center;
+    }
+
+    .year {
+      display: flex;
+      flex-direction: row;
+      gap: 15px;
+      justify-content: center;
+    }
+
+    .semester {
+      background-color: var(--bg-light);
+      border-radius: 8px;
+      padding: 15px;
+    }
+
+    .course-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .course {
+      background-color: var(--bg-course-default);
+      border: 1.5px solid var(--border-color-main);
+      padding: 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      max-width: 250px;
+      min-width: 250px;
+      white-space: pre-line;
+      user-select: none;
+    }
+
+    .course.completed {
+      background-color: var(--bg-course-completed);
+      border-color: var(--border-color-completed);
+    }
+
+    .course.onprocess {
+      background-color: var(--bg-course-onprocess);
+      border-color: var(--border-color-onprocess);
+    }
+
+    .editable {
+      outline: none;
+    }
+
+    .editable:focus {
+      border-bottom: 2px dashed var(--border-color-editable-focus);
+      background: var(--bg-editable-focus);
+    }
+
+    .user-manual-green {
+      color: var(--text-link-green);
+    }
+
+    .user-manual-blue {
+      color: var(--text-link-blue);
+    }
+
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .overlay-content {
+      background: white;
+      color: var(--text-muted);
+      padding: 24px;
+      border-radius: 12px;
+      max-width: 800px;
+      width: 90%;
+      font-size: 16px;
+      line-height: 1.6;
+      position: relative;
+    }
+
+    .close-overlay {
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    #toggle-manual, #export-pdf, #reset-planner {
+      color: var(--text-muted);
+      border: 1px solid var(--text-muted);
+      border-radius: 24px;
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      z-index: 1001;
+      background: white;
+    }
+
+    .export-mode .no-export {
+      display: none !important;
+    }
+
+    .export-mode #planner {
+      transform: scale(0.75);
+      transform-origin: top left;
+    }
+
+    @media (max-width: 768px) {
+      .tree {
+        flex-direction: column;
+        align-items: center;
+      }
+      .year {
+        flex-direction: column;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h1 style="margin: 0;">MFU Course Planner</h1>
+    <div class="no-export" style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;">
+      <button id="toggle-manual">Show User Manual</button>
+      <button id="export-pdf">Export as PDF</button>
+      <button id="reset-planner">Reset Planner</button> <!-- ✅ Reset Button -->
+    </div>
+  </div>
+
+  <div class="overlay" id="manual-overlay">
+    <div class="overlay-content">
+      <button class="close-overlay" id="close-manual">×</button>
+      <h2>User Manual</h2>
+      <ul>
+        <li>📘 Each year is shown horizontally with two semesters listed vertically.</li>
+        <li>✅ Click a course block to mark it as <span class="user-manual-green">Completed</span> (green).</li>
+        <li>🔵 Click again to change it to <span class="user-manual-blue">On Process</span> (blue).</li>
+        <li>❌ Click a third time to reset the course block to its original state (gray).</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="tree" id="planner"></div>
+
+  <script>
+    const editableCodes = ['1203XXX', 'XXXXX', '120XXXX', 'XXXXXXX'];
+
+    const curriculum = {
+      'Year 1': {
+        'Semester 1': [
+          '1005134|English for Communication 1',
+          '1106100|Mathematics for Life',
+          '1202221|Principles of Economics',
+          '1203102|Managing Organization and Entrepreneurship',
+          '1203107|Business Etiquettes and Communication',
+          '1203225|Personality for Service Personnel',
+          'MFU333|MFU Character'
+        ],
+        'Semester 2': [
+          '1006135|English for Communication 2',
+          '1006136|English for Career Development',
+          '1201117|Fundamentals of Accounting',
+          '1203121|Principles of Marketing',
+          '1207301|Introduction to Tourism and Hospitality Industry',
+          '1601104|Global Citizenship',
+          '2408101|Chinese 1'
+        ]
+      },
+      'Year 2': {
+        'Semester 1': [
+          '1203106|Corporate Finance',
+          '1203216|Human Resource Management in Global Context',
+          '1203217|Business Law and Ethics',
+          '1203220|Business Innovation in Digital Era',
+          '1207210|Sustainable Service Design in Hospitality Business',
+          '2408102|Chinese 2'
+        ],
+        'Semester 2': [
+          '1001208|Creative Thinking and Inquiry Skills for Everyday Use',
+          '1203215|Taxation',
+          '1203218|Business Statistics and Data Analytics',
+          '1207103|Hotel and Lodging Operation and Management',
+          '1207218|Tourist Behavior and Service Psychology',
+          '1301118|Introduction to Digital Technology and Data Science',
+          'XXXXXXX|Free Elective 1'
+        ]
+      },
+      'Year 3': {
+        'Semester 1': [
+          '1203331|Business Research',
+          '1207305|MICE and Event Management',
+          '1207322|Management in Healthcare and Wellness Business',
+          '1207327|Room Division Management',
+          '1207424|Food Preparation and Culinary Skills',
+          '120XXXX|Minor or Elective 1 HBM'
+        ],
+        'Semester 2': [
+          '1203432|Stratigic Management',
+          '1207314|Food and Beverage Service and Management',
+          '1207317|Internal Internship',
+          '1207403|Revenue Management and Cost Control in Hospitality Industry',
+          '120XXXX|Minor or Elective 2 HBM',
+          '120XXXX|Minor or Elective 3 HBM'
+        ]
+      },
+      'Year 4': {
+        'Semester 1': [
+          '1207316|Innovation and Technology Management in Tourism and Hospitality Industry',
+          '1207328|Business Creation for Hospitality Industry',
+          '1207490|Senior Project',
+          '120XXXX|Minor or Elective 4',
+          '120XXXX|Minor or Elective 5',
+          'XXXXXXX|Free Elective 2'
+        ],
+        'Semester 2': [
+          '1207496|Co-operative Education'
+        ]
+      }
+    };
+
+    const planner = document.getElementById('planner');
+
+    function saveState() {
+      const state = [...document.querySelectorAll('.course')].map(course => ({
+        code: course.querySelector('strong').innerText,
+        name: course.querySelector('span').innerText.trim(),
+        status: course.classList.contains('completed') ? 'completed' :
+                course.classList.contains('onprocess') ? 'onprocess' : ''
+      }));
+      localStorage.setItem('courseState', JSON.stringify(state));
+    }
+
+    function loadState() {
+      const state = JSON.parse(localStorage.getItem('courseState') || '[]');
+      state.forEach(saved => {
+        const course = [...document.querySelectorAll('.course')]
+          .find(c => c.querySelector('strong').innerText === saved.code);
+        if (course) {
+          course.querySelector('span').innerText = saved.name;
+          course.classList.remove('completed', 'onprocess');
+          if (saved.status) course.classList.add(saved.status);
+        }
+      });
+    }
+
+    for (const year in curriculum) {
+      const yearContainer = document.createElement('div');
+      yearContainer.className = 'year-container';
+      const yearTitle = document.createElement('h2');
+      yearTitle.className = 'year-title';
+      yearTitle.textContent = year;
+      yearContainer.appendChild(yearTitle);
+      const yearDiv = document.createElement('div');
+      yearDiv.className = 'year';
+      for (const semester in curriculum[year]) {
+        const semesterDiv = document.createElement('div');
+        semesterDiv.className = 'semester';
+        const semesterTitle = document.createElement('h3');
+        semesterTitle.textContent = semester;
+        semesterDiv.appendChild(semesterTitle);
+        const courseList = document.createElement('div');
+        courseList.className = 'course-list';
+        curriculum[year][semester].forEach(course => {
+          const [code, name] = course.split('|');
+          const courseDiv = document.createElement('div');
+          courseDiv.className = 'course';
+          courseDiv.innerHTML = `<strong>${code}</strong>\n<span ${editableCodes.includes(code) ? 'contenteditable="true" class="editable"' : ''}>${name}</span>`;
+          courseDiv.addEventListener('click', (e) => {
+            if (e.target.isContentEditable) return;
+            if (courseDiv.classList.contains('completed')) {
+              courseDiv.classList.remove('completed');
+              courseDiv.classList.add('onprocess');
+            } else if (courseDiv.classList.contains('onprocess')) {
+              courseDiv.classList.remove('onprocess');
+            } else {
+              courseDiv.classList.add('completed');
+            }
+            saveState();
+          });
+          if (editableCodes.includes(code)) {
+            courseDiv.querySelector('span').addEventListener('blur', saveState);
+          }
+          courseList.appendChild(courseDiv);
+        });
+        semesterDiv.appendChild(courseList);
+        yearDiv.appendChild(semesterDiv);
+      }
+      yearContainer.appendChild(yearDiv);
+      planner.appendChild(yearContainer);
+    }
+
+    window.addEventListener('DOMContentLoaded', loadState);
+    window.addEventListener('beforeunload', saveState);
+
+    document.getElementById('toggle-manual').addEventListener('click', () => {
+      document.getElementById('manual-overlay').style.display = 'flex';
+    });
+
+    document.getElementById('close-manual').addEventListener('click', () => {
+      document.getElementById('manual-overlay').style.display = 'none';
+    });
+
+    document.getElementById('export-pdf').addEventListener('click', async () => {
+      document.body.classList.add('export-mode');
+      const element = document.getElementById('planner');
+      const canvas = await html2canvas(element, { scale: 2 });
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      const padding = 40;
+      const pdfWidth = canvas.width + padding * 2;
+      const pdfHeight = canvas.height + padding * 2;
+      const pdf = new jspdf.jsPDF({
+        orientation: 'landscape',
+        unit: 'px',
+        format: [pdfWidth, pdfHeight],
+      });
+      pdf.addImage(imgData, 'JPEG', padding, padding, canvas.width, canvas.height);
+      pdf.save('course-planner.pdf');
+      document.body.classList.remove('export-mode');
+    });
+
+    // ✅ Reset Planner Button Function
+    document.getElementById('reset-planner').addEventListener('click', () => {
+  if (confirm('Are you sure you want to reset all progress?')) {
+    // Clear saved state
+    localStorage.removeItem('courseState');
+
+    // Reset all course visual styles and names
+    document.querySelectorAll('.course').forEach(course => {
+      course.classList.remove('completed', 'onprocess');
+      
+      const code = course.querySelector('strong').innerText;
+      const span = course.querySelector('span');
+
+      // Restore original name from curriculum if it's editable
+      for (const year in curriculum) {
+        for (const semester in curriculum[year]) {
+          const match = curriculum[year][semester].find(entry => entry.startsWith(code + '|'));
+          if (match) {
+            const [, originalName] = match.split('|');
+            span.innerText = originalName;
+          }
+        }
+      }
+    });
+  }
+});
+
+  </script>
+</body>
+</html>
